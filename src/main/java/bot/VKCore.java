@@ -69,15 +69,15 @@ public class VKCore {
     public List<Message> getMessage() throws ClientException, ApiException {
         List<Message> messages = new ArrayList<Message>();
         Message message = new Message();
+        JsonObject json;
 
         GetLongPollEventsResponse resp = vk.longPoll().getEvents(lps.getServer(), lps.getKey(), Integer.parseInt(lps.getTs())).waitTime(30).execute();
 
         lps.setTs(resp.getTs().toString());
-        Gson gson = new Gson();
 
         for (JsonObject obj : resp.getUpdates()) {
-            System.out.println(obj);
-            JsonObject json = (JsonObject) obj.get("object");
+            //System.out.println(obj);
+            json = (JsonObject) obj.get("object");
 
             message.setPeerId(json.get("user_id").getAsInt());
             message.setText((json.get("body").toString()));
