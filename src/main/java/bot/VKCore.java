@@ -1,8 +1,6 @@
 package bot;
 
 import com.google.gson.*;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 import com.vk.api.sdk.client.TransportClient;
 import com.vk.api.sdk.client.VkApiClient;
 import com.vk.api.sdk.client.actors.GroupActor;
@@ -16,8 +14,9 @@ import com.vk.api.sdk.objects.messages.Message;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,16 +66,24 @@ public class VKCore {
 
     }
 
-    public Message getMessage() throws ClientException, ApiException {
+    public List<Message> getMessage() throws ClientException, ApiException {
+        List<Message> messages = new ArrayList<Message>();
         Message message = new Message();
+
         GetLongPollEventsResponse resp = vk.longPoll().getEvents(lps.getServer(), lps.getKey(), Integer.parseInt(lps.getTs())).waitTime(30).execute();
 
         lps.setTs(resp.getTs().toString());
+        Gson gson = new Gson();
 
         for (JsonObject obj : resp.getUpdates()) {
-            message = jsonParser(obj.toString());
+            System.out.println(obj);
+            JsonObject json = (JsonObject) obj.get("object");
+
+            message.setPeerId(json.get("user_id").getAsInt());
+            message.setText((json.get("body").toString()));
+            messages.add(message);
         }
-        return message;
+        return messages;
     }
 
     public void sendMessage(String msg, int peerId){
@@ -90,23 +97,5 @@ public class VKCore {
         } catch (ApiException | ClientException e) {
             e.printStackTrace();
         }
-    }
-
-    private Message jsonParser(String jsonString){
-        Message message = new Message();
-        Pattern pattern;
-        Matcher matcher;
-
-        pattern = Pattern.compile("\"user_id\":(.*?),");
-        matcher = pattern.matcher(jsonString);
-        if (matcher.find()){
-            message.setPeerId(Integer.parseInt(matcher.group(1)));
-        }
-        pattern = Pattern.compile("\"body\":(.*?),");
-        matcher = pattern.matcher(jsonString);
-        if (matcher.find()){
-            message.setText(matcher.group(1));
-        }
-        return message;
     }
 }
