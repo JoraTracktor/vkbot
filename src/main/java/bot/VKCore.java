@@ -1,27 +1,32 @@
 package bot;
 
+import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import com.vk.api.sdk.client.TransportClient;
 import com.vk.api.sdk.client.VkApiClient;
 import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
+import com.vk.api.sdk.objects.callback.longpoll.responses.GetLongPollEventsResponse;
+import com.vk.api.sdk.objects.groups.LongPollServer;
 import com.vk.api.sdk.objects.messages.Message;
-import com.vk.api.sdk.queries.messages.MessagesGetLongPollHistoryQuery;
+
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class VKCore {
 
     private static VKCore instance;
-
     private VkApiClient vk;
-    private static int ts;
+    private static LongPollServer lps;
     private GroupActor actor;
-    private static int maxMsgId = -1;
 
     public static VKCore getInstance() {
         if (instance == null) {
@@ -58,45 +63,25 @@ public class VKCore {
         TransportClient transportClient = HttpTransportClient.getInstance();
         vk = new VkApiClient(transportClient);
         actor = new GroupActor(groupId, token);
-        ts = vk.messages().getLongPollServer(actor).execute().getTs();
+        lps = vk.groups().getLongPollServer(actor, groupId).execute();
+
     }
 
     public Message getMessage() throws ClientException, ApiException {
-        MessagesGetLongPollHistoryQuery eventsQuery = vk.messages()
-                .getLongPollHistory(actor)
-                .ts(ts);
-        if (maxMsgId > 0){
-            eventsQuery.maxMsgId(maxMsgId);
-        }
-        List<Message> messages = eventsQuery
-                .execute()
-                .getMessages()
-                .getItems();
-        System.out.println(messages);
-        if (!messages.isEmpty()){
-            try {
-                ts =  vk.messages()
-                        .getLongPollServer(actor)
-                        .execute()
-                        .getTs();
+        Message message = new Message();
+        GetLongPollEventsResponse resp = vk.longPoll().getEvents(lps.getServer(), lps.getKey(), Integer.parseInt(lps.getTs())).waitTime(30).execute();
 
-            } catch (ClientException e) {
-                e.printStackTrace();
-            }
+        lps.setTs(resp.getTs().toString());
+
+        for (JsonObject obj : resp.getUpdates()) {
+            message = jsonParser(obj.toString());
         }
-        if (!messages.isEmpty() && !messages.get(0).isOut()) {
-            int messageId = messages.get(0).getId();
-            if (messageId > maxMsgId){
-                maxMsgId = messageId;
-            }
-            return messages.get(0);
-        }
-        return null;
+        return message;
     }
 
     public void sendMessage(String msg, int peerId){
         if (msg == null){
-            System.out.println("null");
+            System.out.println("No text");
             return;
         }
         try {
@@ -105,5 +90,23 @@ public class VKCore {
         } catch (ApiException | ClientException e) {
             e.printStackTrace();
         }
+    }
+
+    private Message jsonParser(String jsonString){
+        Message message = new Message();
+        Pattern pattern;
+        Matcher matcher;
+
+        pattern = Pattern.compile("\"user_id\":(.*?),");
+        matcher = pattern.matcher(jsonString);
+        if (matcher.find()){
+            message.setPeerId(Integer.parseInt(matcher.group(1)));
+        }
+        pattern = Pattern.compile("\"body\":(.*?),");
+        matcher = pattern.matcher(jsonString);
+        if (matcher.find()){
+            message.setText(matcher.group(1));
+        }
+        return message;
     }
 }

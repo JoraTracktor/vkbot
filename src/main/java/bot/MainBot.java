@@ -11,15 +11,18 @@ public class MainBot {
     public static void main(String[] args) throws NullPointerException, ApiException, InterruptedException {
 
         VKCore vkCore = VKCore.getInstance();
-
+        Message message;
+        ExecutorService exec;
         final int RECONNECT_TIME = 10000;
+
         System.out.println("Start server");
         while (true) {
-            Thread.sleep(300);
             try {
-                Message message = vkCore.getMessage();
+                message = vkCore.getMessage();
+                System.out.println(message);
+                System.out.println(message.getText());
                 if (message != null) {
-                    ExecutorService exec = Executors.newCachedThreadPool();
+                    exec = Executors.newCachedThreadPool();
                     exec.execute(new Messenger(message));
                 }
             } catch (ClientException e) {
